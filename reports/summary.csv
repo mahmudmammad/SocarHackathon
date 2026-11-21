@@ -1,0 +1,8 @@
+file,issue,count,impact_on_model,suggested_fix
+well_tests.csv,GL-06 gas in m3/d instead of Mscf/d,9,Gas labels ~28x too high; gas model chases these rows,Divide gas & total gas by 28.317
+well_tests.csv,Negative values (sign flip),5,Model learns impossible negative rates,Take absolute value; balances then close
+well_tests.csv,Test sensor average differs from high-freq log,2,Only the 2 negative gas-lift rows; everything else matches the log,Fixed by the sign-flip correction
+high_freq_data.csv,-999.25 missing-value code,7418,Drags daily averages down,Treat as NaN
+high_freq_data.csv,Readings outside physical limits,192,Spikes distort daily features,Treat as NaN
+high_freq_data.csv,Exact duplicate rows,2513,Negligible,Drop duplicates
+high_freq_data.csv,Gaps > 5 min,33,7 gaps >= 24 h; 1 outage(s) hitting all wells,Interpolate short gaps; flag long ones
