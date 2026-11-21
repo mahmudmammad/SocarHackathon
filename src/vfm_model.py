@@ -5,7 +5,7 @@ Instead of one formula for all wells, every well gets its own numbers, learned f
                -> a per-well inflow line (IPR) that slowly drifts with depletion
   Water cut    WC  = level_w + trend_w * days              (+ shared tubing gradient)
   Oil = q_L * (1 - WC),  Water = q_L * WC,  Gas = Oil * GOR_w  (GOR_w = average GOR of that well's tests;
-  for a well with no tests it falls back to the solution GOR from reservoir_pvt.csv)
+  for a well with no tests it falls back to the solution GOR from well_completion.csv, then the field median)
 
 Inputs are still only sensors + fixed well data; well-test results are only used as training labels.
 Limit: it needs a well's own tests, so it is not meant for a brand-new well.
@@ -56,7 +56,8 @@ class PhysicsIPR:
         liq_X, wc_X = self._X(d)
         liq = np.clip(self.m_liq.predict(liq_X), 0, None)
         wc = np.clip(self.m_wc.predict(wc_X), 0, 100) / 100
-        gor = d.well_name.map(self.gor).fillna(d.solution_gor_at_pb_scf_stb).to_numpy()
+        # GOR: the well's own tests, else its solution GOR, else the median of the known wells
+        gor = d.well_name.map(self.gor).fillna(d.solution_gor_at_pb_scf_stb).fillna(self.gor.median()).to_numpy()
         oil = liq * (1 - wc)
         return pd.DataFrame({"oil_rate_stbd": oil, "water_rate_stbd": liq * wc,
                              "gas_rate_mscfd": oil * gor / 1000}, index=d.index)

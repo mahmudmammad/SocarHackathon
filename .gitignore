@@ -8,11 +8,12 @@ __pycache__/
 # 272 MB, over GitHub's 100 MB limit. The same file is committed as data/high_freq_data.zip
 data/high_freq_data.csv
 
-# Answer-key copies made only to test the scorer. Not our results, never submit
-outputs/pta_answer_key_copy_*.csv
 outputs/pta_notreal.csv
 
 # Earlier result-file versions kept locally; the final ones are in results/ and pta_plots/
 outputs/vfm_submission.csv
 outputs/pta_submission*.csv
 outputs/pta/
+
+# Editor settings
+.idea/

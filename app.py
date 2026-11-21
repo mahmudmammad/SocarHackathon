@@ -5,6 +5,7 @@ The page starts on the hackathon field results; uploads are processed in the bac
 with the trained model in models/vfm_model.pkl and kept under runs/<id>/.
 """
 import json
+import shutil
 import sys
 import threading
 import traceback
@@ -98,6 +99,8 @@ def work(rid: str, recal: bool) -> None:
             jobs[rid]["step"] = step
     try:
         pipeline.run(RUNS / rid, recalibrate=recal, progress=progress)
+        # The uploaded raw files are no longer needed (hundreds of MB); a failed run keeps them for debugging
+        shutil.rmtree(RUNS / rid / "upload", ignore_errors=True)
         with lock:
             jobs[rid]["state"] = "done"
     except Exception as e:  # shown to the user on the upload page

@@ -26,10 +26,7 @@ tests), the average error is **4.3% MAPE**: oil 3.8%, water 3.1%, gas 6.1%. By W
 water 3.6%, gas 4.8%. The model was chosen on April to June only, so the July to September score was not
 used to pick it.
 
-**Phase 2.** All 6 shut-ins inside the data were analysed. Against the organisers' answer key, the
-average differences are: Horner slope 1.0%, permeability 3.2%, skin 0.07 and ΔP skin 5.2%. The answer key
-also lists 11 shut-ins from October to December, which are after our data ends, so they cannot be
-analysed.
+**Phase 2.** All 6 shut-ins inside the data (January to September) were analysed.
 
 ## How it works
 
@@ -106,13 +103,19 @@ jupyter nbconvert --to notebook --execute --inplace notebook.ipynb   # rerun the
 * **Data:** upload raw files as CSV, or a ZIP of CSVs. Files are recognised by their columns, so any
   names work.
   * Needed: the 1-minute sensors and the choke events.
-  * Optional: completion, PVT, well tests and a PTA answer key. Without completion or PVT, the bundled
+  * Optional: completion, PVT and well tests. Without completion or PVT, the bundled
     files are used.
   * The trained model in `models/vfm_model.pkl` is used as is. If well tests are uploaded, it can be
     recalibrated on them.
 * **Sensors:** hourly field measurements per well, with shut-ins marked.
 * **Rates:** daily oil, water and gas per well against the well tests.
 * **Field:** all wells stacked, with totals and water cut.
+* **Plot:** build your own charts. Pick wells, manifolds or the field and any of the rates, cumulatives,
+  ratios (WC, GOR, WOR, GLR, RF estimate), daily sensor averages (BHP, WHP, choke, BHT …) and well tests.
+  The x axis is the date or any of those variables. Each chart has zoom, pan, drag bars on both axes,
+  box zoom, home, auto-scale, time-lapse, PNG/CSV export, copy to clipboard, duplicate, full screen and
+  a settings panel (title, fonts, colours, lines, axes, margins). Charts are kept in the browser.
+  Uses ECharts 5.5.1, saved in `web/echarts.min.js`, so it works offline.
 * **Accuracy:** how the model was checked, plus a check against uploaded well tests.
 * **Build-ups:** Horner and log-log plots, k, skin, ΔP skin, p* and the interpretation.
 * **Export:**

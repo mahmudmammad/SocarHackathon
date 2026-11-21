@@ -18,7 +18,6 @@ SOCAR hackathon: ten gas-lifted oil wells, January to September 2025.
 * **Phase 1 (VFM):** estimate daily oil, water and gas for every well from sensors only.
   Well-test rates are used only as training labels. `pta_results.csv` is not used at all.
 * **Phase 2 (PTA):** Horner analysis of every shut-in, using the Phase 1 oil rate.
-  `pta_results.csv` is read only at the end, as an answer key for comparison.
 
 The notebook runs the same code as the command line (`src/`) and the web app (`app.py`).
 Raw files in `data/` are never changed; all cleaning is done in code.
@@ -217,28 +216,16 @@ Each choke closure that is reopened is a build-up. For each one:
   the Horner slope `m` is fitted there.
 * `k = 162.6 q Bo μ / (m h)`, `s = 1.151 [(P1hr − Pwf)/m − log(k/(φ μ ct rw²)) + 3.23]`, `ΔP skin = 0.87 m s`.
 
-Only 6 shut-ins fall inside our data (January to September). The answer key also lists 11 shut-ins in
-October to December, after our data ends, so those cannot be analysed.
+Only 6 shut-ins fall inside our data (January to September).
 """)
 code("""
 pvt = pd.read_csv(DATA / "reservoir_pvt.csv").set_index("well_name")
-key = pd.read_csv(DATA / "pta_results.csv", parse_dates=["t_shut"])   # answer key, comparison only
-table, web, skipped = pta.run(hf, daily, pvt, key=key)
+table, web, skipped = pta.run(hf, daily, pvt)
 (pta.ROOT / "outputs" / "pta_web.json").write_text(json.dumps(web))
 table.drop(columns=["plot"]).to_csv(pta.RESULT.parent / "pta_results_detailed.csv", index=False)
 print("Phase 2 result file:", pta.write_submission(table).relative_to(pta.ROOT))
-table[["well_name", "t_shut", "q_pred_stbd", "m_psi_cycle", "key_m_psi_cycle", "k_md", "key_k_md",
-       "skin", "key_skin", "dP_skin", "key_dP_skin", "interpretation"]].round(2)
-""")
-code("""
-err = pd.DataFrame({
-    "slope m, %": 100 * (table.m_psi_cycle - table.key_m_psi_cycle).abs() / table.key_m_psi_cycle,
-    "k, %": 100 * (table.k_md - table.key_k_md).abs() / table.key_k_md,
-    "skin, abs": (table.skin - table.key_skin).abs(),
-    "ΔP skin, %": 100 * (table.dP_skin - table.key_dP_skin).abs() / table.key_dP_skin.abs(),
-})
-print("Average difference from the answer key:", err.mean().round(2).to_dict())
-pd.read_csv(pta.RESULT)
+table[["well_name", "t_shut", "q_pred_stbd", "m_psi_cycle", "k_md", "skin", "dP_skin",
+       "interpretation"]].round(2)
 """)
 md("### Well-test plots (saved in `pta_plots/`)")
 code("""

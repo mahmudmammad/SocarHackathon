@@ -1,4 +1,5 @@
-/* Flow Meter — frontend for the VFM and build-up results. No libraries; charts are hand-drawn SVG.
+/* Flow Meter — frontend for the VFM and build-up results. Charts are hand-drawn SVG, except the Plot page
+   (web/plot.js), which uses ECharts for its zoom, pan and export tools.
    Served by app.py, it can upload raw data and download reports. The hackathon results come from
    data.js (window.VFM_DATA, written by src/export_web.py), so the page also opens straight from disk. */
 'use strict';
@@ -573,10 +574,6 @@ function pageBuildups(view) {
   }
   const list = D.pta, b = list[Math.min(state.bu, list.length - 1)], c = b.curves;
   const label = x => `${x.well_name}, ${dShort.format(parseT(x.t_shut))}`;
-  const keyNote = (v, d) => v == null ? '' : `Answer key ${fmt(v, d)}`;
-  const hasKey = list.some(x => x.key_k_md != null);
-  const kc = (v, d) => hasKey ? `<td>${fmt(v, d)}</td>` : '';
-  const kh = hasKey ? '<th>Key</th>' : '';
   const tone = b.skin > 3 ? 'warn' : b.skin < -1 ? 'good' : 'ok';
   const inWin = c.dt.map(t => t >= b.window_start_hr && t <= b.window_end_hr);
   const pick = (arr, want) => arr.filter((_, i) => inWin[i] === want);
@@ -596,10 +593,10 @@ function pageBuildups(view) {
         `<button type="button" class="chip" data-bu="${i}" aria-pressed="${x === b}">${label(x)}</button>`).join('')}</div>
     </div>
     <section class="summary" aria-label="Reservoir properties">
-      ${stat('', 'Horner slope', fmt(b.m_psi_cycle, 1), 'psi/cycle', keyNote(b.key_m_psi_cycle, 1))}
-      ${stat('oil', 'Permeability', fmt(b.k_md, 1), 'md', keyNote(b.key_k_md, 1))}
-      ${stat('', 'Skin', fmt(b.skin, 2), '', keyNote(b.key_skin, 2))}
-      ${stat('', 'ΔP skin', fmt(b.dP_skin, 1), 'psi', keyNote(b.key_dP_skin, 1))}
+      ${stat('', 'Horner slope', fmt(b.m_psi_cycle, 1), 'psi/cycle')}
+      ${stat('oil', 'Permeability', fmt(b.k_md, 1), 'md')}
+      ${stat('', 'Skin', fmt(b.skin, 2), '')}
+      ${stat('', 'ΔP skin', fmt(b.dP_skin, 1), 'psi')}
     </section>
     <p class="footnote">Predicted oil rate before shut-in ${fmt(b.q_pred_stbd)} STB/d (${dLong.format(parseT(b.q_date))}).
       Producing time ${fmt(b.tp_hr)} h. Flowing pressure at shut-in ${fmt(b.pwf_psia, 1)} psia.
@@ -628,26 +625,20 @@ function pageBuildups(view) {
         <span><i style="background:var(--tint)"></i>m / 2.303</span>
       </div>
     </section>
-    <h2 class="section-title">${hasKey ? 'All build-ups against the answer key' : 'All build-ups'}</h2>
+    <h2 class="section-title">All build-ups</h2>
     <section class="card" style="padding:0 0 4px">
       <div class="table-wrap" style="margin:0;max-height:none"><table>
-        <thead><tr><th>Shut-in</th><th>Duration</th><th>Predicted oil</th><th>Slope m</th>${kh}
-          <th>k, md</th>${kh}<th>Skin</th>${kh}<th>ΔP skin</th>${kh}<th>p*, psia</th><th class="wrap">Reading</th></tr></thead>
+        <thead><tr><th>Shut-in</th><th>Duration</th><th>Predicted oil</th><th>Slope m</th>
+          <th>k, md</th><th>Skin</th><th>ΔP skin</th><th>p*, psia</th><th class="wrap">Reading</th></tr></thead>
         <tbody>${list.map(x => `<tr>
           <td>${label(x)}</td><td>${fmt(x.duration_hr, 1)} h</td><td>${fmt(x.q_pred_stbd)}</td>
-          <td>${fmt(x.m_psi_cycle, 1)}</td>${kc(x.key_m_psi_cycle, 1)}
-          <td>${fmt(x.k_md, 1)}</td>${kc(x.key_k_md, 1)}
-          <td>${fmt(x.skin, 2)}</td>${kc(x.key_skin, 2)}
-          <td>${fmt(x.dP_skin, 1)}</td>${kc(x.key_dP_skin, 1)}
+          <td>${fmt(x.m_psi_cycle, 1)}</td>
+          <td>${fmt(x.k_md, 1)}</td>
+          <td>${fmt(x.skin, 2)}</td>
+          <td>${fmt(x.dP_skin, 1)}</td>
           <td>${fmt(x.p_star_psia)}</td><td class="wrap">${esc(x.interpretation || '')}</td></tr>`).join('')}</tbody>
       </table></div>
-    </section>
-    ${hasKey ? `<section class="card note">
-      ${infoIcon}
-      <p><b>The answer key is only for comparison.</b> It comes from <code>pta_results.csv</code> and is never used
-        in the calculation. The slopes agree within about 2%, because both use the same pressure data. Permeability
-        differs a little more, because it scales with the oil rate and ours is predicted, not measured.</p>
-    </section>` : ''}`;
+    </section>`;
 
   draws.push(() => {
     const oil = cssVar('--oil'), grey = cssVar('--tertiary'), tint = cssVar('--tint'), ink = cssVar('--label');
@@ -683,8 +674,6 @@ const FILE_KINDS = [
     hint: '1-minute pressures, temperature and gas-lift rate per well' },
   { role: 'well_tests', label: 'Well tests', need: false, cols: ['well_name', 'test_start', 'test_end', 'oil_rate_stbd'],
     hint: 'Measured rates. Used to check the model, or to recalibrate it' },
-  { role: 'answer_key', label: 'PTA answer key', need: false, cols: ['well_name', 't_shut', 'k_md'],
-    hint: 'Only shown next to the results for comparison' },
   { role: 'choke', label: 'Choke events', need: true, cols: ['timestamp', 'well_name', 'choke_opening_pct'],
     hint: 'Choke changes; closures to 0% are the build-ups' },
   { role: 'pvt', label: 'Reservoir and fluid properties', need: false, cols: ['well_name', 'porosity_frac', 'oil_fvf_rb_stb'],
@@ -800,7 +789,7 @@ function pageData(view) {
     </label>
     ${upload.error ? `<section class="card note error" role="alert">${infoIcon}<p><b>Could not process the data.</b> ${esc(upload.error)}</p></section>` : ''}
     <section class="list files" aria-label="Expected files">
-      ${['sensors', 'choke', 'pvt', 'completion', 'well_tests', 'answer_key'].map(r => FILE_KINDS.find(k => k.role === r)).map(k => {
+      ${['sensors', 'choke', 'pvt', 'completion', 'well_tests'].map(r => FILE_KINDS.find(k => k.role === r)).map(k => {
         const f = upload.files.find(x => upload.roles[x.name] === k.role);
         return `<div class="frow ${f ? 'have' : ''}">
           <span class="fmark">${f ? check : ''}</span>
@@ -976,17 +965,18 @@ const plotName = f => { const [w, d] = f.replace('.png', '').split('_');
 // ---- Router ----------------------------------------------------------------------
 const view = document.getElementById('view');
 
-const PAGES = { data: pageData, sensors: pageSensors, wells: pageWells, field: pageField,
+const PAGES = { data: pageData, sensors: pageSensors, wells: pageWells, field: pageField, plot: v => Plot.render(v),
                 accuracy: pageAccuracy, buildups: pageBuildups, export: pageExport };
 
 function render() {
   draws = [];
+  if (state.page !== 'plot') Plot.leave(view);
   document.querySelectorAll('.nav-seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === state.page));
   PAGES[state.page](view);
   draws.forEach(f => f());
   const perWell = state.page === 'wells' || state.page === 'sensors';
   history.replaceState(null, '', `${location.search}#${state.page}${perWell ? '/' + state.well : ''}`);
-  const titles = { data: 'Data', sensors: `${state.well} sensors`, field: 'Field', accuracy: 'Accuracy', buildups: 'Build-ups', export: 'Export' };
+  const titles = { data: 'Data', sensors: `${state.well} sensors`, field: 'Field', plot: 'Plot', accuracy: 'Accuracy', buildups: 'Build-ups', export: 'Export' };
   document.title = `${state.page === 'wells' ? state.well : titles[state.page]} – Flow Meter`;
 }
 

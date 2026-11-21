@@ -12,8 +12,6 @@ Single-phase oil, Horner method, field units.
   s   = 1.151 [ (P1hr - Pwf)/m - log10(k / (phi mu ct rw^2)) + 3.23 ]
   dPs = 0.87 m s
 
-pta_results.csv (the organisers' interpretation) is read ONLY at the end, as an answer key for comparison.
-
 Run from repo root:  python3 src/pta.py   (needs outputs/daily_rates.csv from src/train.py)
 """
 import json
@@ -95,6 +93,9 @@ def analyse(well: str, t_shut, reopen, hf, daily, pvt) -> tuple[dict, dict]:
     if full.empty:
         raise ValueError("no fully flowing day before the shut-in, so there is no rate to use")
     q = float(full.oil_stbd.iloc[-1])
+    if q <= 0:
+        raise ValueError("the predicted oil rate before the shut-in is 0, so k and skin can't be computed "
+                         "(a well the model doesn't know: upload its well tests and recalibrate)")
     q_date = before[before.uptime >= 0.999].date.iloc[-1]
     np_cum = float(before.oil_stbd.sum() + d[d.date == t_shut.normalize()].oil_stbd.sum())
     tp = np_cum / q * 24
@@ -156,7 +157,7 @@ def analyse(well: str, t_shut, reopen, hf, daily, pvt) -> tuple[dict, dict]:
     return res, curves
 
 
-def plot(res: dict, c: dict, key: pd.Series | None, out_dir=OUT):
+def plot(res: dict, c: dict, out_dir=OUT):
     oil, ink, grey, accent = "#A2845E", "#1C1C1E", "#8E8E93", "#007AFF"
     plt.rcParams.update({"font.family": "Helvetica", "font.size": 10, "axes.edgecolor": "#C6C6C8",
                          "axes.spines.top": False, "axes.spines.right": False})
@@ -184,9 +185,6 @@ def plot(res: dict, c: dict, key: pd.Series | None, out_dir=OUT):
 
     txt = (f"q (predicted) = {res['q_pred_stbd']:,.0f} STB/d    k = {res['k_md']:.1f} md    "
            f"skin = {res['skin']:.2f}    ΔP skin = {res['dP_skin']:.1f} psi")
-    if key is not None:
-        txt += (f"\nAnswer key: m = {key.m_psi_cycle:.1f}    k = {key.k_md:.1f} md    "
-                f"skin = {key.skin:.2f}    ΔP skin = {key.dP_skin:.1f} psi")
     fig.text(0.01, -0.02, txt, fontsize=10, va="top")
     fig.tight_layout()
     path = out_dir / f"{res['well_name']}_{res['t_shut']:%Y%m%d}.png"
@@ -250,9 +248,9 @@ def interpret(r: dict) -> dict:
                f"{r['window_start_hr']:.1f} to {r['window_end_hr']:.1f} h.")
     pts.append(f"The test saw about {r['radius_investigated_ft']:,.0f} ft into the reservoir. "
                f"Extrapolated reservoir pressure p* is {r['p_star_psia']:,.0f} psia.")
-    cycles = np.log10(r["window_end_hr"] / r["window_start_hr"])
-    if cycles < 0.7:
-        pts.append(f"Radial flow lasted only {cycles:.1f} log cycles, so treat k and skin as approximate.")
+    if r["duration_hr"] < 12:
+        pts.append(f"The shut-in lasted only {r['duration_hr']:.1f} h, so radial flow may not be fully developed. "
+                   "Treat k and skin as approximate.")
     if r["pwf_psia"] < r["bubble_point_psia"]:
         pts.append(f"Flowing pressure ({r['pwf_psia']:,.0f} psia) is below the bubble point "
                    f"({r['bubble_point_psia']:,.0f} psia): free gas near the well makes the single-phase result approximate.")
@@ -267,7 +265,7 @@ def interpret(r: dict) -> dict:
     return {"headline": headline, "points": pts}
 
 
-def run(hf, daily, pvt, choke=None, plot_dir=OUT, key: pd.DataFrame | None = None):
+def run(hf, daily, pvt, choke=None, plot_dir=OUT):
     """Analyse every build-up. Returns (table, web records with curves, list of skipped shut-ins)."""
     plot_dir.mkdir(parents=True, exist_ok=True)
     rows, web, skipped = [], [], []
@@ -279,15 +277,7 @@ def run(hf, daily, pvt, choke=None, plot_dir=OUT, key: pd.DataFrame | None = Non
         except (ValueError, IndexError) as e:
             skipped.append({"well_name": s.well_name, "t_shut": str(s.t_shut), "reason": str(e)})
             continue
-        krow = None
-        if key is not None:
-            k = key[(key.well_name == s.well_name) & (key.t_shut == s.t_shut)]
-            krow = k.iloc[0] if len(k) else None
-        res["plot"] = plot(res, curves, krow, plot_dir).name
-        if key is not None:
-            for col in ["m_psi_cycle", "k_md", "skin", "dP_skin"]:
-                res[f"key_{col}"] = None if krow is None else round(float(krow[col]), 3)
-            res["k_error_pct"] = None if krow is None else round(100 * (res["k_md"] - krow.k_md) / krow.k_md, 1)
+        res["plot"] = plot(res, curves, plot_dir).name
         it = interpret(res)
         res["interpretation"] = it["headline"]
         rows.append(res)
@@ -305,15 +295,12 @@ def main() -> None:
     hf = load_high_freq()
     daily = pd.read_csv(ROOT / "outputs" / "daily_rates.csv", parse_dates=["date"])
     pvt = pd.read_csv(DATA / "reservoir_pvt.csv").set_index("well_name")
-    # Answer key: used only for comparison, never as an input.
-    key = pd.read_csv(DATA / "pta_results.csv", parse_dates=["t_shut"])
-
-    out, web, skipped = run(hf, daily, pvt, key=key)
+    out, web, skipped = run(hf, daily, pvt)
     out.to_csv(ROOT / "outputs" / "pta_predicted.csv", index=False)
     out.drop(columns=["plot"]).to_csv(RESULT.parent / "pta_results_detailed.csv", index=False)
     (ROOT / "outputs" / "pta_web.json").write_text(json.dumps(web))
     show = out[["well_name", "t_shut", "duration_hr", "q_pred_stbd", "window_start_hr", "window_end_hr",
-                "m_psi_cycle", "key_m_psi_cycle", "k_md", "key_k_md", "skin", "key_skin", "dP_skin", "key_dP_skin"]]
+                "m_psi_cycle", "k_md", "skin", "dP_skin"]]
     print(show.round(2).to_string(index=False))
     for s in skipped:
         print(f"Skipped {s['well_name']} {s['t_shut']}: {s['reason']}")

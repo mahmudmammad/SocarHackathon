@@ -7,7 +7,6 @@ Files are recognised by their columns, not their names:
   reservoir PVT well_name, porosity_frac, ...     (optional, falls back to the bundled file)
   well tests    well_name, test_start, test_end, oil_rate_stbd, ...   (optional: checks the model,
                                                                         or recalibrates it if asked)
-  PTA answer key well_name, t_shut, k_md, ...     (optional, only shown next to our results)
 
 Steps: clean sensors -> daily averages -> VFM model (.pkl) -> daily rates -> build-up analysis
 -> result files, reports and the data the web page shows.
@@ -31,13 +30,12 @@ from vfm_model import PhysicsIPR
 ROLES = [  # (role, columns that must be present), checked in this order
     ("sensors", {"timestamp", "well_name", "whp_psia", "dh_pressure_psia"}),
     ("well_tests", {"well_name", "test_start", "test_end", "oil_rate_stbd"}),
-    ("answer_key", {"well_name", "t_shut", "k_md"}),
     ("choke", {"timestamp", "well_name", "choke_opening_pct"}),
     ("pvt", {"well_name", "porosity_frac", "oil_fvf_rb_stb"}),
     ("completion", {"well_name", "gauge_tvd_ft"}),
 ]
 LABELS = {"sensors": "Sensor readings", "choke": "Choke events", "completion": "Well completion",
-          "pvt": "Reservoir and fluid properties", "well_tests": "Well tests", "answer_key": "PTA answer key"}
+          "pvt": "Reservoir and fluid properties", "well_tests": "Well tests"}
 SENSOR_COLS = ["dh_pressure_psia", "whp_psia", "annulus_pressure_psia", "gas_lift_rate_mscfd",
                "dh_temperature_degf", "choke_opening_pct", "whp_downstream_psia"]
 
@@ -160,10 +158,7 @@ def run(job: Path, recalibrate: bool = False, progress=lambda step, text: None) 
     hourly_sensors(hf).to_parquet(job / "sensors_hourly.parquet")
 
     progress(5, "Analysing the build-ups")
-    key = None
-    if "answer_key" in found:
-        key = pd.read_csv(found["answer_key"], parse_dates=["t_shut"])
-    table, web, skipped = pta.run(hf, out, pvt.set_index("well_name"), choke, job / "pta_plots", key=key)
+    table, web, skipped = pta.run(hf, out, pvt.set_index("well_name"), choke, job / "pta_plots")
     for s in skipped:
         warnings.append(f"Build-up {s['well_name']} {s['t_shut'][:16]} skipped: {s['reason']}.")
     if len(table):
@@ -180,7 +175,7 @@ def run(job: Path, recalibrate: bool = False, progress=lambda step, text: None) 
     source = {"id": job.name, "name": label, "warnings": warnings,
               "files": [{"role": LABELS[r], "name": Path(f).name, "bundled": Path(f).parent == DATA}
                         for r, f in found.items()],
-              "rows": n_raw, "wells": wells, "recalibrated": recalibrated, "has_key": key is not None}
-    data = build_data(out, tests, card, web, source, check)
+              "rows": n_raw, "wells": wells, "recalibrated": recalibrated}
+    data = build_data(out, tests, card, web, source, check, sensors=daily, static=static)
     (job / "data.json").write_text(json.dumps(data, separators=(",", ":")))
     return data
