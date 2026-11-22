@@ -82,23 +82,71 @@ Each build-up also gets a plain-English reading:
 
 ## Run it
 
+The project uses [uv](https://docs.astral.sh/uv/) for Python and packages. uv installs the right Python
+(3.11 or newer) and the exact package versions in `uv.lock`, so you do not need to install Python first.
+
+### 1. Install uv (once per computer)
+
 ```bash
-pip install -r requirements.txt
+# macOS or Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-python3 app.py            # web app at http://127.0.0.1:8000
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-python3 src/train.py      # Phase 1: model check, models/vfm_model.pkl, results/vfm_submission.csv (≈3 min)
-python3 src/pta.py        # Phase 2: results/pta_submission.csv and pta_plots/
-python3 src/reports.py    # Excel and PDF reports
-jupyter nbconvert --to notebook --execute --inplace notebook.ipynb   # rerun the notebook
+# or, with Homebrew on macOS
+brew install uv
 ```
+
+Open a new terminal, then check it with `uv --version`.
+
+### 2. Set up the project (once per clone)
+
+```bash
+git clone <repository-url>
+cd SocarHackathon
+uv sync                          # creates .venv with Python and the pinned packages from uv.lock
+```
+
+### 3. Start the web app
+
+```bash
+# First time only: build the cleaned-sensor cache that the Sensors page reads (about 30 seconds).
+uv run python -c "import sys; sys.path.insert(0, 'src'); from data import load_high_freq; load_high_freq()"
+
+uv run python app.py             # web app at http://127.0.0.1:8000
+```
+
+Without the first command the Sensors page shows "Sensor data is not on this computer". That message
+suggests `src/train.py`, but the command above is faster and does not rewrite the model or result files.
+
+### 4. Rebuild the results (optional)
+
+These commands overwrite the committed model and result files.
+
+```bash
+uv run python src/train.py       # Phase 1: model check, models/vfm_model.pkl, results/vfm_submission.csv (≈3 min)
+uv run python src/pta.py         # Phase 2: results/pta_submission.csv and pta_plots/
+uv run python src/reports.py     # Excel and PDF reports
+uv run jupyter nbconvert --to notebook --execute --inplace notebook.ipynb   # rerun the notebook
+```
+
+### Without uv
+
+```bash
+pip install -r requirements.txt  # Python 3.11 or newer
+python3 app.py                   # use python3 wherever the commands above say uv run python
+```
+
+`requirements.txt` is generated from `uv.lock`. After a dependency change in `pyproject.toml`, run
+`uv lock && uv export --format requirements-txt --no-hashes --no-dev -o requirements.txt`.
 
 `data/high_freq_data.csv` (272 MB) is over GitHub's file limit, so it is committed as
 `data/high_freq_data.zip`. The code reads the zip when the CSV is missing.
 
 ## Web app
 
-`python3 app.py`, then open http://127.0.0.1:8000. The page starts on the hackathon results.
+`uv run python app.py`, then open http://127.0.0.1:8000. The page starts on the hackathon results.
 
 * **Data:** upload raw files as CSV, or a ZIP of CSVs. Files are recognised by their columns, so any
   names work.

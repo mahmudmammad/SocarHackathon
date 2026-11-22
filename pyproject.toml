@@ -1,0 +1,19 @@
+[project]
+name = "flow-meter"
+version = "0.1.0"
+description = "SOCAR Hackathon 2026: virtual flow metering and build-up analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+# requirements.txt (for pip users) is generated from uv.lock; after changing these, run:
+#   uv lock && uv export --format requirements-txt --no-hashes --no-dev -o requirements.txt
+dependencies = [
+    "pandas==2.3.3",
+    "numpy==2.3.5",
+    "scikit-learn==1.7.2",
+    "matplotlib==3.10.6",
+    "pyarrow==21.0.0",
+    "openpyxl==3.1.5",
+    "flask==3.1.2",
+    "jupyter==1.1.1",
+]
+# No [build-system]: src/ holds scripts, not an installable package, so uv only installs the dependencies.
