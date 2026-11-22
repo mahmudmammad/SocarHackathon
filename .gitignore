@@ -17,3 +17,6 @@ outputs/pta/
 
 # Editor settings
 .idea/
+
+# uv environment (uv sync)
+.venv/
